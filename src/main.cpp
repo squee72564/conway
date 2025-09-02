@@ -11,9 +11,9 @@
 #include <SFML/Window/Event.hpp>
 #include <SFML/System/Vector2.hpp>
 
-#include <functional>
 #include <optional>
 #include <unordered_set>
+#include <unordered_map>
 
 constexpr int PARTICLE_SIZE = 1;
 
@@ -25,22 +25,8 @@ struct V2Hash {
     }
 };
 
-void draw_particles(const std::unordered_set<sf::Vector2i, V2Hash>& p, sf::RenderWindow& window) {
-    sf::RectangleShape rect{{PARTICLE_SIZE, PARTICLE_SIZE}};
-    for (const sf::Vector2i& particle : p) {
-        const float x_start = particle.x * PARTICLE_SIZE;
-        const float y_start = particle.y * PARTICLE_SIZE;
-
-        rect.setPosition({
-            x_start, y_start
-        });
-
-        window.draw(rect);
-    }
-}
-
 void add_rectangle(std::unordered_set<sf::Vector2i, V2Hash>& particles, sf::RenderWindow& window, const sf::Vector2f& mouse_pos) {
-    const int kernel_size = 25;
+    const int kernel_size = 17;
     int mouse_x_i = static_cast<int>(mouse_pos.x);
     int mouse_y_i = static_cast<int>(mouse_pos.y);
     for (int i = mouse_x_i - kernel_size/2; i < mouse_x_i + kernel_size/2; ++i) {
@@ -59,16 +45,18 @@ void moveScreenToMouse(sf::RenderWindow& window, sf::Vector2f mouse_pos_f) {
 }
 
 int main() {
-    sf::VideoMode mode({800,800});
+    sf::VideoMode mode({1240,800});
     sf::RenderWindow window(mode, "Conway's Game Of Life");
 
     std::unordered_set<sf::Vector2i, V2Hash> current;
-    std::unordered_set<sf::Vector2i, V2Hash> dead;
     std::unordered_set<sf::Vector2i, V2Hash> next;
+    std::unordered_map<sf::Vector2i, int, V2Hash> neighbor_counts;
 
-    current.reserve(10000);
-    dead.reserve(10000);
-    next.reserve(10000);
+    sf::VertexArray vertices(sf::PrimitiveType::Points);
+
+    current.reserve(2048);
+    next.reserve(2048);
+    neighbor_counts.reserve(2048 * 8);
 
     bool is_paused{false};
     bool is_mbr_down{false};
@@ -77,8 +65,13 @@ int main() {
 
     sf::RectangleShape center_rect{{PARTICLE_SIZE, PARTICLE_SIZE}};
 
+    constexpr std::array<std::pair<int,int>, 8> offsets = {{
+        {-1,1}, {0,1}, {1,1}, {1,0}, {1,-1}, {0,-1}, {-1,-1}, {-1,0}
+    }};
+
     while (window.isOpen()) {
 
+        // Input handling
         if (is_mbr_down) {
             moveScreenToMouse(window, mouse_pos_f);
         }
@@ -86,7 +79,6 @@ int main() {
         if (is_mbl_down) {
             add_rectangle(current, window, window.mapPixelToCoords(sf::Mouse::getPosition(window), window.getView()));
         }
-
 
         if (std::optional<sf::Event> event = window.pollEvent()) {
             if (event->is<sf::Event::Closed>()) {
@@ -96,10 +88,11 @@ int main() {
             if (auto maybe_event = event->getIf<sf::Event::KeyPressed>()) {
                 switch(maybe_event->code) {
                     case sf::Keyboard::Key::P:
-                    is_paused = !is_paused;
+                        is_paused = !is_paused;
                         break;
                     case sf::Keyboard::Key::Escape:
                         window.close();
+                        break;
                     default:
                         break;
                 }
@@ -125,63 +118,43 @@ int main() {
                     is_mbr_down = false;
                 }
             }
-
         }
 
         window.clear();
 
-        sf::VertexArray vertices(sf::PrimitiveType::Points, current.size());
-
-        // Draw current
-        int i{ 0 };
-        for (const auto& particle : current) {
-            vertices[i++] = sf::Vertex{{static_cast<float>(particle.x), static_cast<float>(particle.y)}, sf::Color::White};
+        // Draw current cells
+        vertices.resize(current.size());
+        int i = 0;
+        for (const auto& pos : current) {
+            vertices[i++] = sf::Vertex{
+                {static_cast<float>(pos.x), static_cast<float>(pos.y)},
+                sf::Color::White
+            };
         }
 
         window.draw(vertices);
-        
+
         if (!is_paused) {
-
-            std::array<std::pair<int,int>, 8> offsets = {{
-                {-1,1}, {0,1}, {1,1}, {1,0}, {1,-1}, {0,-1}, {-1,-1}, {-1,0}
-            }};
-            
-            // Check live cells and get adjacent dead cells
-            for (const auto& [x,y]: current) {
-                int count{ 0 };
-                for (const auto& [dx,dy] : offsets) {
-                    const sf::Vector2i new_pos{x + dx, y + dy};
-
-                    if (current.count(new_pos)) {
-                        count++; 
-                    } else if (!dead.count(new_pos)) {
-                        dead.emplace(std::move(new_pos));
-                    }
-                }
-
-                // Survival Rules
-                if (count == 3 || count == 2) {
-                    next.emplace(x, y);
-                }
-            }
-
-            // Check dead cells
-            for (const auto& [x,y] : dead) {
-                int count{ 0 }; 
-                for (const auto& [dx,dy] : offsets) {
-                    if (current.count({x + dx, y + dy})) count++;
-                }
-
-                if (count == 3) next.emplace(x,y);
-            }
-
-            // Update next based off current
-            current = std::move(next);
+            neighbor_counts.clear();
             next.clear();
-            dead.clear();
+
+            for (const auto& pos : current) {
+                for (const auto& [dx, dy] : offsets) {
+                    sf::Vector2i neighbor{pos.x + dx, pos.y + dy};
+                    neighbor_counts[neighbor]++;
+                }
+            }
+
+            for (const auto& [pos, count] : neighbor_counts) {
+                if (count == 3 || (count == 2 && current.count(pos))) {
+                    next.emplace(pos);
+                }
+            }
+
+            std::swap(current, next);
         }
 
         window.display();
     }
-    return 0;
 }
+
