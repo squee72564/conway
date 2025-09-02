@@ -19,9 +19,9 @@ constexpr int PARTICLE_SIZE = 1;
 
 struct V2Hash {
     std::size_t operator() (const sf::Vector2i& v) const {
-        std::size_t h1 = std::hash<int>{}(v.x);
-        std::size_t h2 = std::hash<int>{}(v.y);
-        return h1 ^ (h2 << 1);
+        std::size_t seed = std::hash<int>{}(v.x);
+        seed ^= std::hash<int>{}(v.y) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+        return seed;
     }
 };
 
@@ -54,7 +54,7 @@ void add_rectangle(std::unordered_set<sf::Vector2i, V2Hash>& particles, sf::Rend
 
 void moveScreenToMouse(sf::RenderWindow& window, sf::Vector2f mouse_pos_f) {
     sf::View view = window.getView();
-    view.move((mouse_pos_f - window.mapPixelToCoords(sf::Mouse::getPosition(window), view)) * 0.007f);
+    view.move((mouse_pos_f - window.mapPixelToCoords(sf::Mouse::getPosition(window), view)) * 0.012f);
     window.setView(view);
 }
 
@@ -72,6 +72,7 @@ int main() {
 
     bool is_paused{false};
     bool is_mbr_down{false};
+    bool is_mbl_down{false};
     sf::Vector2f mouse_pos_f{};
 
     sf::RectangleShape center_rect{{PARTICLE_SIZE, PARTICLE_SIZE}};
@@ -80,6 +81,10 @@ int main() {
 
         if (is_mbr_down) {
             moveScreenToMouse(window, mouse_pos_f);
+        }
+
+        if (is_mbl_down) {
+            add_rectangle(current, window, window.mapPixelToCoords(sf::Mouse::getPosition(window), window.getView()));
         }
 
 
@@ -102,7 +107,7 @@ int main() {
 
             if (auto maybe_event = event->getIf<sf::Event::MouseButtonPressed>()) {
                 if (maybe_event->button == sf::Mouse::Button::Left) {
-                    add_rectangle(current, window, window.mapPixelToCoords(sf::Mouse::getPosition(window), window.getView()));
+                    is_mbl_down = true;
                 }
 
                 if (maybe_event->button == sf::Mouse::Button::Right) {
@@ -112,6 +117,10 @@ int main() {
             }
 
             if (auto maybe_event = event->getIf<sf::Event::MouseButtonReleased>()) {
+                if (maybe_event->button == sf::Mouse::Button::Left) {
+                    is_mbl_down = false;
+                }
+
                 if (maybe_event->button == sf::Mouse::Button::Right) {
                     is_mbr_down = false;
                 }
@@ -145,7 +154,7 @@ int main() {
 
                     if (current.count(new_pos)) {
                         count++; 
-                    } else {
+                    } else if (!dead.count(new_pos)) {
                         dead.emplace(std::move(new_pos));
                     }
                 }
