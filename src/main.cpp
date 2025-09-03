@@ -25,28 +25,13 @@ struct V2Hash {
     }
 };
 
-void add_rectangle(std::unordered_set<sf::Vector2i, V2Hash>& particles, sf::RenderWindow& window, const sf::Vector2f& mouse_pos) {
-    const int kernel_size = 17;
-    int mouse_x_i = static_cast<int>(mouse_pos.x);
-    int mouse_y_i = static_cast<int>(mouse_pos.y);
-    for (int i = mouse_x_i - kernel_size/2; i < mouse_x_i + kernel_size/2; ++i) {
-        for (int j = mouse_y_i - kernel_size/2; j < mouse_y_i + kernel_size/2; ++j) {
-            particles.emplace(
-                i, j
-            );
-        }
-    }
-}
-
-void moveScreenToMouse(sf::RenderWindow& window, sf::Vector2f mouse_pos_f) {
-    sf::View view = window.getView();
-    view.move((mouse_pos_f - window.mapPixelToCoords(sf::Mouse::getPosition(window), view)) * 0.012f);
-    window.setView(view);
-}
+void add_rectangle(std::unordered_set<sf::Vector2i, V2Hash>& particles, sf::RenderWindow& window, const sf::Vector2f& mouse_pos);
+void moveScreenToMouse(sf::RenderWindow& window, sf::Vector2f mouse_pos_f);
 
 int main() {
     sf::VideoMode mode({1240,800});
     sf::RenderWindow window(mode, "Conway's Game Of Life");
+    window.setFramerateLimit(60);
 
     std::unordered_set<sf::Vector2i, V2Hash> current;
     std::unordered_set<sf::Vector2i, V2Hash> next;
@@ -62,8 +47,6 @@ int main() {
     bool is_mbr_down{false};
     bool is_mbl_down{false};
     sf::Vector2f mouse_pos_f{};
-
-    sf::RectangleShape center_rect{{PARTICLE_SIZE, PARTICLE_SIZE}};
 
     constexpr std::array<std::pair<int,int>, 8> offsets = {{
         {-1,1}, {0,1}, {1,1}, {1,0}, {1,-1}, {0,-1}, {-1,-1}, {-1,0}
@@ -156,5 +139,24 @@ int main() {
 
         window.display();
     }
+}
+
+void add_rectangle(std::unordered_set<sf::Vector2i, V2Hash>& particles, sf::RenderWindow& window, const sf::Vector2f& mouse_pos) {
+    const int kernel_size = 17;
+    int mouse_x_i = static_cast<int>(mouse_pos.x);
+    int mouse_y_i = static_cast<int>(mouse_pos.y);
+    for (int i = mouse_x_i - kernel_size/2; i < mouse_x_i + kernel_size/2; ++i) {
+        for (int j = mouse_y_i - kernel_size/2; j < mouse_y_i + kernel_size/2; ++j) {
+            particles.emplace(
+                i, j
+            );
+        }
+    }
+}
+
+void moveScreenToMouse(sf::RenderWindow& window, sf::Vector2f mouse_pos_f) {
+    sf::View view = window.getView();
+    view.move((mouse_pos_f - window.mapPixelToCoords(sf::Mouse::getPosition(window), view)) * 0.07f);
+    window.setView(view);
 }
 
