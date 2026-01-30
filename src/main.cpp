@@ -15,7 +15,7 @@
 #include <unordered_set>
 #include <unordered_map>
 
-constexpr int PARTICLE_SIZE = 1;
+constexpr int PARTICLE_SIZE = 3;
 
 struct V2Hash {
     std::size_t operator() (const sf::Vector2i& v) const {
@@ -46,6 +46,7 @@ int main() {
     bool is_paused{false};
     bool is_mbr_down{false};
     bool is_mbl_down{false};
+    bool vertices_dirty{true};
     sf::Vector2f mouse_pos_f{};
 
     constexpr std::array<std::pair<int,int>, 8> offsets = {{
@@ -61,9 +62,10 @@ int main() {
 
         if (is_mbl_down) {
             add_rectangle(current, window, window.mapPixelToCoords(sf::Mouse::getPosition(window), window.getView()));
+            vertices_dirty = true;
         }
 
-        if (std::optional<sf::Event> event = window.pollEvent()) {
+        for (auto event = window.pollEvent(); event.has_value(); event = window.pollEvent()) {
             if (event->is<sf::Event::Closed>()) {
                 window.close();
             }
@@ -106,24 +108,31 @@ int main() {
         window.clear();
 
         // Draw current cells
-        vertices.resize(current.size());
-        int i = 0;
-        for (const auto& pos : current) {
-            vertices[i++] = sf::Vertex{
-                {static_cast<float>(pos.x), static_cast<float>(pos.y)},
-                sf::Color::White
-            };
+        if (vertices_dirty) {
+            vertices.resize(current.size());
+            int i = 0;
+            for (const auto& pos : current) {
+                vertices[i++] = sf::Vertex{
+                    {
+                        static_cast<float>(pos.x * PARTICLE_SIZE),
+                        static_cast<float>(pos.y * PARTICLE_SIZE)
+                    },
+                    sf::Color::White
+                };
+            }
+            vertices_dirty = false;
         }
 
         window.draw(vertices);
 
         if (!is_paused) {
             neighbor_counts.clear();
+            neighbor_counts.reserve(current.size() * 8);
             next.clear();
 
             for (const auto& pos : current) {
                 for (const auto& [dx, dy] : offsets) {
-                    sf::Vector2i neighbor{pos.x + dx, pos.y + dy};
+                    const sf::Vector2i neighbor{pos.x + dx, pos.y + dy};
                     neighbor_counts[neighbor]++;
                 }
             }
@@ -135,6 +144,7 @@ int main() {
             }
 
             std::swap(current, next);
+            vertices_dirty = true;
         }
 
         window.display();
@@ -143,8 +153,8 @@ int main() {
 
 void add_rectangle(std::unordered_set<sf::Vector2i, V2Hash>& particles, sf::RenderWindow& window, const sf::Vector2f& mouse_pos) {
     const int kernel_size = 17;
-    int mouse_x_i = static_cast<int>(mouse_pos.x);
-    int mouse_y_i = static_cast<int>(mouse_pos.y);
+    int mouse_x_i = static_cast<int>(mouse_pos.x / PARTICLE_SIZE);
+    int mouse_y_i = static_cast<int>(mouse_pos.y / PARTICLE_SIZE);
     for (int i = mouse_x_i - kernel_size/2; i < mouse_x_i + kernel_size/2; ++i) {
         for (int j = mouse_y_i - kernel_size/2; j < mouse_y_i + kernel_size/2; ++j) {
             particles.emplace(
@@ -159,4 +169,3 @@ void moveScreenToMouse(sf::RenderWindow& window, sf::Vector2f mouse_pos_f) {
     view.move((mouse_pos_f - window.mapPixelToCoords(sf::Mouse::getPosition(window), view)) * 0.07f);
     window.setView(view);
 }
-
