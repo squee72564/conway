@@ -15,15 +15,9 @@
 #include <unordered_set>
 #include <unordered_map>
 
-constexpr int PARTICLE_SIZE = 3;
+#include "grid_types.hpp"
 
-struct V2Hash {
-    std::size_t operator() (const sf::Vector2i& v) const {
-        std::size_t seed = std::hash<int>{}(v.x);
-        seed ^= std::hash<int>{}(v.y) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
-        return seed;
-    }
-};
+constexpr int PARTICLE_SIZE = 3;
 
 void add_rectangle(std::unordered_set<sf::Vector2i, V2Hash>& particles, sf::RenderWindow& window, const sf::Vector2f& mouse_pos);
 void moveScreenToMouse(sf::RenderWindow& window, sf::Vector2f mouse_pos_f);
